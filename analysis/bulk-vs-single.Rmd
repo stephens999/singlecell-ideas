@@ -1,0 +1,83 @@
+---
+title: "Compare bulk vs single"
+author: "Matthew Stephens"
+date: 2017-02-21
+output: html_document
+---
+
+```{r read-chunk, include=FALSE, cache=FALSE}
+knitr::read_chunk("chunks.R")
+```
+
+```{r knitr-opts-chunk, include=FALSE}
+```
+
+**Last updated:** `r Sys.Date()`
+
+**Code version:** `r workflowr::extract_commit(".", 1)$sha1`
+
+
+# Outline
+
+The purpose here is to outline/brainstorm thoughts on comparing single cell data
+vs bulk data, and examine the differences between them.
+
+We know from quick plots that the bulk and single cell are “largely concordant”, but can we quantify the differences? Do the differences tend to occur more in the low expressed genes, or are there also differences across the dynamic range?
+
+# Notation and Model
+
+Let's try to set notation and come up with a model.
+
+Start by assuming we have both single cell data and corresponding bulk data on a single sample.
+Let $X^s_{jg}$ denote the observed counts of gene $g$ in single cell $j$. And let 
+$X^b_g$ denote the counts of gene $g$ in the bulk.
+
+I'm going to suggest pooling the single cell data into a single count, and define $X^s_g := \sum_j X^s_{jg}$. 
+
+Now we might be interested in identifying the genes that show the most "significant" deviations between $X^b_g$ and $X^s_g$, and to quantify those deviations. 
+
+A simple approach would be to condition on the total counts, $C_g := X^b_g + X^s_g$, and look
+for "outliers" where the fraction $X^b_g/C_g$ is particularly small or large. In other words,
+look for genes where the 
+bulk data reads account for a smaller (or larger) proportion of reads than is typical.
+The statistical challenge is that we want to take account of the fact that, if $C_g$ is small,
+then this ratio could be small or big just by chance. See [this blog post](http://varianceexplained.org/r/empirical_bayes_baseball/) for relevant discussion.
+
+To account for this we could use a binomial model:
+$$X^b_g | C_g \sim \text{Binomial}(C_g, p_g)$$ 
+where $p_g$ is the fraction of all reads that come from bulk at gene $g$, to be estimated. 
+If the bulk data and single-cell data were completely concordant
+then the $p_g$ would be equal across genes (to some value that is not so important - it would
+depend on total sequencing depth of bulk vs single-cell). We are interested in variation of $p_g$ among genes -
+and particularly genes where $p_g$ is particularly large or small.
+
+If we assume that the $p_g$ come from some unimodal distribution $g()$, which is to be estimated, then
+we can fit this model using the "general" version of `ashr`. Alternatively we could potentially use
+methods from [this blog post](http://varianceexplained.org/r/empirical_bayes_baseball/).
+
+# Sanity checks
+
+We could check this approach by applying it also to compare two random subsets of the single cell data.
+We should find that $p_g \approx 0.5$ for all $g$ in that case.
+
+# Caveats/Improvements
+
+By pooling the data across single cells this approach obviously ignores the fact that
+some genes show more variance across single cells than others. We might want to take that
+into account in the future, depending on the results here.
+
+Actually the question of investigating variability across single cells could itself be potentially
+interesting. We could fit the model $X^s_{jg} \sim Poi(\mu_{jg})$ where $\log(\mu_{jg}) \sim f_g()$
+for some unimodal $f$ (I switched notation from $g$ to $f$ to avoid using $g_g$.)
+We could then use `ashr` to estimate the distribution $f_g()$ for each gene $g$.
+I'm interested in whether some $f_g$ have a mode at 0, and others have modes elsewhere.
+It would also be interesting to see if there is evidence for bimodal $f_g$ (e.g. a mode at 0, and a mode elesehwere), which could be a signature of "bursty" transcription. However, fitting that model
+might require some methods work.
+
+
+
+
+## Session Information
+
+```{r session-info}
+```
